@@ -1,2 +1,7 @@
-# SmartGateController
+# Smart Gate Controller V1.0
 The update Smart Gate Controller module.
+
+## Differences
+- This module support Input Voltage from 5-30V DC allowing integration to Smart Gate Motors running on 24V DC.
+- Module with external antenna is available in cases where the Gate Motor is further away from the WiFi Access Point.
+- Exposing 3 additional GPIO's that can be used for additional sensors by the user.
