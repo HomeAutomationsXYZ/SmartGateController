@@ -1,5 +1,5 @@
 # Smart Gate Controller V1.0
-The update Smart Gate Controller module.
+The update Smart Gate Controller module - https://homeautomations.xyz/2025/02/next-generation-gate-controller/
 
 ## Differences
 - This module support Input Voltage from 5-30V DC allowing integration to Smart Gate Motors running on 24V DC.
