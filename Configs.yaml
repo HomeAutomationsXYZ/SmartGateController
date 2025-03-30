@@ -1,0 +1,257 @@
+substitutions:
+  mac_address: aabbcc
+  devicename: gate0001
+
+esphome:
+  name: gatemotorcontoller
+  friendly_name: Front Gate
+
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # power_save_mode: none
+  reboot_timeout: 5min
+
+
+# Enable logging
+logger:
+  #level: VERY_VERBOSE
+
+# Enable Home Assistant API - Own generated Key
+api:
+  # encryption:
+  #   key: ""
+
+web_server:
+  local: true
+  auth:
+    username: admin
+    password: !secret web_server_password
+
+ota:
+  - platform: esphome
+    id: my_ota
+    password: !secret ota_password
+ 
+# mqtt:
+#   broker: !secret mqtt_broker
+#   username: !secret mqtt_username
+#   password: !secret mqtt_password
+#   discovery_unique_id_generator: mac
+#   #log_topic: gatec/${devicename}/logs
+#   log_topic: gatec/${mac_address}/logs
+#   #client_id: esp
+#   #topic_prefix: gatec/${devicename}
+#   topic_prefix: gatec/${mac_address}
+#   birth_message:
+#     topic: ${devicename}/topic
+#     payload: online
+#   will_message:
+#     topic: ${devicename}/topic
+#     payload: offline
+
+output:
+  - platform: gpio
+    pin: GPIO32
+    id: led_output
+  - platform: gpio
+    pin: GPIO12
+    id: relay
+  - platform: gpio
+    pin: GPIO5
+    id: relay_2
+  
+
+button:
+  - platform: output
+    output: relay
+    id: button_1
+    disabled_by_default: True
+    duration: 1000ms
+    name: "Open / Close"
+    icon: mdi:gate
+  - platform: output
+    output: relay_2
+    id: button_2
+    duration: 1000ms
+    name: "Pedestrian"
+    icon: "mdi:walk"
+
+light:
+  - platform: binary
+    name: "Flashing LED"
+    output: led_output
+    internal: True
+    id: flashing_led
+    restore_mode: ALWAYS_OFF
+
+
+binary_sensor:
+  - platform: gpio
+    pin: 
+      number: GPIO14
+      mode:
+        input: True
+    name: "Gate Open/Closed"
+    id: gate_status
+    entity_category: diagnostic
+    # internal: True
+    disabled_by_default: True
+    publish_initial_state: True
+    device_class: opening
+    filters:
+      - delayed_on_off: 150ms
+    on_multi_click: 
+      - timing: # Closed
+          - OFF for at least 2000ms
+        then:
+          - logger.log: "Closed"
+          - text_sensor.template.publish:
+              id: status
+              state: "Closed"
+          - lambda: |-
+              id(gate).current_operation = CoverOperation::COVER_OPERATION_IDLE;
+              id(gate).publish_state();
+        invalid_cooldown: 100ms
+
+      - timing: # Open
+          - ON for at least 2000ms
+        then:
+          - logger.log: "Open"
+          - text_sensor.template.publish:
+              id: status
+              state: "Open"
+          - lambda: |-
+              id(gate).current_operation = CoverOperation::COVER_OPERATION_IDLE;
+              id(gate).publish_state();
+        invalid_cooldown: 100ms
+
+      - timing: # Closing
+        - ON for 100ms to 200ms
+        - OFF for 100ms to 200ms
+        - ON for 100ms to 200ms
+        - OFF for 100ms to 200ms
+        - ON for 100ms to 200ms
+        - OFF for 100ms to 200ms
+        - ON for 100ms to 200ms
+        - OFF for 100ms to 200ms
+        - ON for 100ms to 200ms
+        - OFF for 100ms to 200ms
+        - ON for 100ms to 200ms
+        - OFF for 100ms to 200ms
+        - ON for 100ms to 200ms
+        - OFF for 100ms to 200ms
+        - ON for 100ms to 200ms
+        - OFF for 100ms to 200ms
+        then:
+          - logger.log: "Closing"
+          - text_sensor.template.publish:
+              id: status
+              state: "Closing"
+          - lambda: |-
+              id(gate).current_operation = CoverOperation::COVER_OPERATION_CLOSING;
+              id(gate).publish_state();
+        invalid_cooldown: 100ms
+
+      - timing: # Opening
+          - ON for 200ms to 400ms
+          - OFF for 200ms to 400ms
+          - ON for 200ms to 400ms
+          - OFF for 200ms to 400ms
+          - ON for 200ms to 400ms
+          - OFF for 200ms to 400ms
+          - ON for 200ms to 400ms
+          - OFF for 200ms to 400ms
+        then:
+          - logger.log: "Opening"
+          - text_sensor.template.publish:
+              id: status
+              state: "Opening"
+          - lambda: |- 
+              id(gate).current_operation = CoverOperation::COVER_OPERATION_OPENING;
+              id(gate).publish_state();
+        invalid_cooldown: 100ms
+
+      - timing: # No Mains Power
+          - ON for 200ms to 300ms
+          - OFF for 200ms to 300ms
+          - ON for 200ms to 300ms
+          - OFF for 1200ms to 1400ms
+        then:
+          - logger.log: "No Mains"
+          - text_sensor.template.publish:
+              id: status
+              state: "No Mains"
+        invalid_cooldown: 100ms
+
+      - timing: # Battery Low
+          - ON for 200ms to 300ms
+          - OFF for 200ms to 300ms
+          - ON for 200ms to 300ms
+          - OFF for 200ms to 300ms
+          - ON for 200ms to 300ms
+          - OFF for 500ms to 1000ms
+        then:
+          - logger.log: "Low Battery"
+          - text_sensor.template.publish:
+              id: status
+              state: "Low Battery"
+        invalid_cooldown: 100ms
+              
+
+cover:
+  - platform: template
+    name: "Gate"
+    device_class: gate
+    id: gate
+    lambda: |-
+      if (id(status).state == "Open") {
+        return COVER_OPEN;
+      } else if (id(status).state == "Closed") {
+        return COVER_CLOSED;
+      } else {
+        return {};
+      }
+    open_action: 
+      - button.press: button_1
+    close_action: 
+      - button.press: button_1
+    stop_action: 
+      - button.press: button_1
+    optimistic: False
+      
+sensor:
+  - platform: wifi_signal
+    name: "Wifi Signal - Gate Controller"
+    update_interval: 60s
+  - platform: uptime
+    name: Gate uptime
+
+text_sensor:
+  - platform: template
+    icon: mdi:infomation-outline
+    id: status
+    name: "Status"
+  - platform: version
+    name: "Gate Version"
+  # Expose Wifi information as a sensor
+  - platform: wifi_info
+    ip_address:
+      name: Gate IP
+      icon: mdi:wifi
+    ssid:
+      name: Gate SSID
+      icon: mdi:wifi-strength-2
+    bssid:
+      name: Gate BSSID
+
+# time:
+#   - platform: homeassistant
+#     id: homeassistant_time
+
