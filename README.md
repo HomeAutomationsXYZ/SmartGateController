@@ -1,5 +1,6 @@
 # Smart Gate Controller V1.0
 The board can be purchased from: https://homeautomations.xyz/product/smart-gate-controller/
+
 The updated Smart Gate Controller module - https://homeautomations.xyz/2025/02/next-generation-gate-controller/
 
 ## Differences
