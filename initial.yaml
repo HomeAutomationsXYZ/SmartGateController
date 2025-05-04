@@ -14,12 +14,26 @@ logger:
   
 # Enable Home Assistant API
 api:
+  # encryption:
+  #   key: "Em8MOUt3Xy1fLR9fxNCd025YXMUpgADyTrW9b/9POp4="
 
 ota:
   - platform: esphome
+    # password: !secret ota_password
 
 wifi:
+  ssid: [YOUR_SSID]
+  password: [YOUR_WIFI_PASSWORD]
+  # If you want to configure a static IP, edit this section.
+  # Alternatively a DHCP IP Should be assigned to the device
+  # manual_ip:
+  #   static_ip: [YOUR_STATIC_IP]
+  #   gateway: [YOUR_GATEWAY]
+  #   subnet: [YOUR_SUBNET]
+  #   dns1: [YOUR_DNS]
+  
   # Enable fallback hotspot (captive portal) in case wifi connection fails
+  # Please update this password to something difficult...
   ap:
     ssid: "GateController"
     password: "password"
@@ -28,6 +42,9 @@ captive_portal:
 
 web_server:
   port: 80
+  auth:
+    username: admin
+    password: [ADMIN_PASSWORD]
 
 output:
   - platform: gpio
