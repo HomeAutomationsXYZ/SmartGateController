@@ -1,60 +1,56 @@
-substitutions:
-  mac_address: aabbcc
-  devicename: gate0001
+# Template Setup for Smart Gate Controller Devices
+# Users can use this as a starting point to customize own devices.
+
+# If you have questions regarding the device, feel free to contact:
+# Email: support@homeautomations.xyz
 
 esphome:
-  name: gatemotorcontoller
-  friendly_name: Front Gate
-
+  name: smart-gate-controller
+  friendly_name: GateControl
 
 esp32:
   board: esp32dev
   framework:
     type: arduino
 
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  # power_save_mode: none
-  reboot_timeout: 5min
-
-
 # Enable logging
 logger:
-  #level: VERY_VERBOSE
-
-# Enable Home Assistant API - Own generated Key
+  
+# Enable Home Assistant API
 api:
   # encryption:
-  #   key: ""
-
-web_server:
-  local: true
-  auth:
-    username: admin
-    password: !secret web_server_password
+  #   key: "[YOUR_OWN_UNIQUE_ENCRYPTION_KEY]"
 
 ota:
   - platform: esphome
-    id: my_ota
-    password: !secret ota_password
- 
-# mqtt:
-#   broker: !secret mqtt_broker
-#   username: !secret mqtt_username
-#   password: !secret mqtt_password
-#   discovery_unique_id_generator: mac
-#   #log_topic: gatec/${devicename}/logs
-#   log_topic: gatec/${mac_address}/logs
-#   #client_id: esp
-#   #topic_prefix: gatec/${devicename}
-#   topic_prefix: gatec/${mac_address}
-#   birth_message:
-#     topic: ${devicename}/topic
-#     payload: online
-#   will_message:
-#     topic: ${devicename}/topic
-#     payload: offline
+    # password: !secret ota_password
+
+wifi:
+  ssid: [YOUR_SSID]
+  password: [YOUR_WIFI_PASSWORD]
+  # If you want to configure a static IP, edit this section.
+  # Alternatively a DHCP IP Should be assigned to the device
+  # manual_ip:
+  #   static_ip: [YOUR_STATIC_IP]
+  #   gateway: [YOUR_GATEWAY]
+  #   subnet: [YOUR_SUBNET]
+  #   dns1: [YOUR_DNS]
+  
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  # Please update this password to something difficult...
+  ap:
+    ssid: "GateController"
+    password: "[STRONG_PASSWORD]"
+
+captive_portal:
+
+# To provided added security, either include a Password for the webserver, 
+# or disable the webserver completely!
+web_server:
+  port: 80
+  auth:
+    username: admin
+    password: [ADMIN_PASSWORD]
 
 output:
   - platform: gpio
@@ -66,8 +62,7 @@ output:
   - platform: gpio
     pin: GPIO5
     id: relay_2
-  
-
+    
 button:
   - platform: output
     output: relay
@@ -83,28 +78,57 @@ button:
     name: "Pedestrian"
     icon: "mdi:walk"
 
+cover:
+  - platform: template
+    name: "Gate"
+    device_class: gate
+    id: gate
+    lambda: |-
+      if (id(status).state == "Open") {
+        return COVER_OPEN;
+      } else if (id(status).state == "Closed") {
+        return COVER_CLOSED;
+      } else {
+        return {};
+      }
+    open_action: 
+      - button.press: button_1
+    close_action: 
+      - button.press: button_1
+    stop_action: 
+      - button.press: button_1
+    optimistic: False
+
 light:
   - platform: binary
     name: "Flashing LED"
     output: led_output
     internal: True
-    id: flashing_led
+    id: led
     restore_mode: ALWAYS_OFF
-
 
 binary_sensor:
   - platform: gpio
     pin: 
       number: GPIO14
-      mode:
+      mode: 
         input: True
-    name: "Gate Open/Closed"
+    name: "Gate Open/Close"
     id: gate_status
+    device_class: door
     entity_category: diagnostic
-    # internal: True
     disabled_by_default: True
     publish_initial_state: True
-    device_class: opening
+    internal: True
+    on_state: 
+      then:
+        - if:
+            condition:
+              - binary_sensor.is_off: gate_status 
+            then:
+              - light.turn_off: led
+            else:
+              - light.turn_on: led
     filters:
       - delayed_on_off: 150ms
     on_multi_click: 
@@ -119,7 +143,6 @@ binary_sensor:
               id(gate).current_operation = CoverOperation::COVER_OPERATION_IDLE;
               id(gate).publish_state();
         invalid_cooldown: 100ms
-
       - timing: # Open
           - ON for at least 2000ms
         then:
@@ -131,7 +154,6 @@ binary_sensor:
               id(gate).current_operation = CoverOperation::COVER_OPERATION_IDLE;
               id(gate).publish_state();
         invalid_cooldown: 100ms
-
       - timing: # Closing
         - ON for 100ms to 200ms
         - OFF for 100ms to 200ms
@@ -158,7 +180,6 @@ binary_sensor:
               id(gate).current_operation = CoverOperation::COVER_OPERATION_CLOSING;
               id(gate).publish_state();
         invalid_cooldown: 100ms
-
       - timing: # Opening
           - ON for 200ms to 400ms
           - OFF for 200ms to 400ms
@@ -177,7 +198,6 @@ binary_sensor:
               id(gate).current_operation = CoverOperation::COVER_OPERATION_OPENING;
               id(gate).publish_state();
         invalid_cooldown: 100ms
-
       - timing: # No Mains Power
           - ON for 200ms to 300ms
           - OFF for 200ms to 300ms
@@ -189,7 +209,6 @@ binary_sensor:
               id: status
               state: "No Mains"
         invalid_cooldown: 100ms
-
       - timing: # Battery Low
           - ON for 200ms to 300ms
           - OFF for 200ms to 300ms
@@ -203,35 +222,14 @@ binary_sensor:
               id: status
               state: "Low Battery"
         invalid_cooldown: 100ms
-              
-
-cover:
-  - platform: template
-    name: "Gate"
-    device_class: gate
-    id: gate
-    lambda: |-
-      if (id(status).state == "Open") {
-        return COVER_OPEN;
-      } else if (id(status).state == "Closed") {
-        return COVER_CLOSED;
-      } else {
-        return {};
-      }
-    open_action: 
-      - button.press: button_1
-    close_action: 
-      - button.press: button_1
-    stop_action: 
-      - button.press: button_1
-    optimistic: False
-      
+        
 sensor:
   - platform: wifi_signal
-    name: "Wifi Signal - Gate Controller"
-    update_interval: 60s
+    name: "Wifi Signal"
+    update_interval: 600s
+  # Uptime sensor
   - platform: uptime
-    name: Gate uptime
+    name: Uptime
 
 text_sensor:
   - platform: template
@@ -239,19 +237,28 @@ text_sensor:
     id: status
     name: "Status"
   - platform: version
-    name: "Gate Version"
+    name: "Version"
   # Expose Wifi information as a sensor
   - platform: wifi_info
     ip_address:
-      name: Gate IP
-      icon: mdi:wifi
+      name: IP
+      id: ip_address
     ssid:
-      name: Gate SSID
-      icon: mdi:wifi-strength-2
+      name: SSID
     bssid:
-      name: Gate BSSID
+      name: BSSID
+      id: wifi_mac_address
 
-# time:
-#   - platform: homeassistant
-#     id: homeassistant_time
 
+
+interval:
+  - interval: 5s
+    then:
+      - if:
+          condition:
+            not:
+              - wifi.connected:   
+          then:
+            - output.turn_on: led_output
+            - delay: 500ms
+            - output.turn_off: led_output
